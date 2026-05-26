@@ -1143,9 +1143,14 @@ func (g *groupServer) SetGroupInfoEx(ctx context.Context, req *pbgroup.SetGroupI
 					log.ZWarn(ctx, "SetConversations", err, "UserIDs", resp.UserIDs, "conversation", conversation)
 				}
 			}()
-
-			g.notification.GroupInfoSetAnnouncementNotification(ctx, &sdkws.GroupInfoSetAnnouncementTips{Group: tips.Group, OpUser: tips.OpUser})
 		}
+
+		// fix(taohuadao): 公告被清空(Value=="")时也要推送公告变更通知。
+		// 原代码把推送放在 `if Value != ""` 里 —— 清空公告时 DB 已更新为空,
+		// 但不发任何通知(且下方 `num>0` 因 num 已减到 0 也不会发),导致客户端
+		// 收不到推送、本地公告不会同步清除,表现为"提示清除成功但 UI 仍显示旧公告"。
+		// @全员(上面 SetConversations 的 GroupAtType)只在设置非空公告时做,清空无需 @。
+		g.notification.GroupInfoSetAnnouncementNotification(ctx, &sdkws.GroupInfoSetAnnouncementTips{Group: tips.Group, OpUser: tips.OpUser})
 	}
 
 	if req.GroupName != nil {
