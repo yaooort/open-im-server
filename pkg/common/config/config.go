@@ -61,6 +61,7 @@ type Minio struct {
 	SessionToken    string `mapstructure:"sessionToken"`
 	InternalAddress string `mapstructure:"internalAddress"`
 	ExternalAddress string `mapstructure:"externalAddress"`
+	DownloadAddress string `mapstructure:"downloadAddress"`
 	PublicRead      bool   `mapstructure:"publicRead"`
 }
 

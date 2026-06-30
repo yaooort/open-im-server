@@ -19,12 +19,14 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/openimsdk/open-im-server/v3/pkg/authverify"
+	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/openimsdk/open-im-server/v3/pkg/authverify"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/servererrs"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/model"
 	"github.com/openimsdk/protocol/third"
@@ -176,7 +178,7 @@ func (t *thirdServer) AccessURL(ctx context.Context, req *third.AccessURLReq) (*
 		return nil, err
 	}
 	return &third.AccessURLResp{
-		Url:        rawURL,
+		Url:        t.downloadURL(rawURL),
 		ExpireTime: expireTime.UnixMilli(),
 	}, nil
 }
@@ -282,6 +284,30 @@ func (t *thirdServer) CompleteFormData(ctx context.Context, req *third.CompleteF
 
 func (t *thirdServer) apiAddress(prefix, name string) string {
 	return prefix + name
+}
+
+// downloadURL only rewrites the public host for read traffic. The presigned
+// query remains generated against externalAddress, so CDN origin Host must
+// stay the same as externalAddress and query parameters must be forwarded.
+func (t *thirdServer) downloadURL(rawURL string) string {
+	downloadAddress := strings.TrimSpace(t.config.MinioConfig.DownloadAddress)
+	if downloadAddress == "" {
+		return rawURL
+	}
+	download, err := url.Parse(downloadAddress)
+	if err != nil || download.Scheme == "" || download.Host == "" {
+		return rawURL
+	}
+	raw, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	raw.Scheme = download.Scheme
+	raw.Host = download.Host
+	if prefix := strings.TrimRight(download.Path, "/"); prefix != "" {
+		raw.Path = prefix + "/" + strings.TrimLeft(raw.Path, "/")
+	}
+	return raw.String()
 }
 
 func (t *thirdServer) DeleteOutdatedData(ctx context.Context, req *third.DeleteOutdatedDataReq) (*third.DeleteOutdatedDataResp, error) {

@@ -13,10 +13,12 @@ func TestLoadLogConfig(t *testing.T) {
 }
 
 func TestLoadMinioConfig(t *testing.T) {
+	t.Setenv("IMENV_MINIO_DOWNLOADADDRESS", "https://cdn.example.com")
 	var storageConfig Minio
 	err := LoadConfig("../../../config/minio.yml", "IMENV_MINIO", &storageConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "openim", storageConfig.Bucket)
+	assert.Equal(t, "https://cdn.example.com", storageConfig.DownloadAddress)
 }
 
 func TestLoadWebhooksConfig(t *testing.T) {
@@ -28,12 +30,12 @@ func TestLoadWebhooksConfig(t *testing.T) {
 }
 
 func TestLoadOpenIMRpcUserConfig(t *testing.T) {
+	t.Setenv("IMENV_OPENIM_RPC_USER_RPC_LISTENIP", "0.0.0.0")
+	t.Setenv("IMENV_OPENIM_RPC_USER_RPC_PORTS", "10110,10111,10112")
 	var user User
 	err := LoadConfig("../../../config/openim-rpc-user.yml", "IMENV_OPENIM_RPC_USER", &user)
 	assert.Nil(t, err)
-	//export IMENV_OPENIM_RPC_USER_RPC_LISTENIP="0.0.0.0"
 	assert.Equal(t, "0.0.0.0", user.RPC.ListenIP)
-	//export IMENV_OPENIM_RPC_USER_RPC_PORTS="10110,10111,10112"
 	assert.Equal(t, []int{10110, 10111, 10112}, user.RPC.Ports)
 }
 
@@ -45,6 +47,14 @@ func TestLoadNotificationConfig(t *testing.T) {
 }
 
 func TestLoadOpenIMThirdConfig(t *testing.T) {
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_ENABLE", "enabled")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_ENDPOINT", "https://oss-cn-chengdu.aliyuncs.com")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_BUCKET", "my_bucket_name")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_BUCKETURL", "https://my_bucket_name.oss-cn-chengdu.aliyuncs.com")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_ACCESSKEYID", "AKID1234567890")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_ACCESSKEYSECRET", "abc123xyz789")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_SESSIONTOKEN", "session_token_value")
+	t.Setenv("IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_PUBLICREAD", "true")
 	var third Third
 	err := LoadConfig("../../../config/openim-rpc-third.yml", "IMENV_OPENIM_RPC_THIRD", &third)
 	assert.Nil(t, err)
@@ -56,8 +66,6 @@ func TestLoadOpenIMThirdConfig(t *testing.T) {
 	assert.Equal(t, "abc123xyz789", third.Object.Oss.AccessKeySecret)
 	assert.Equal(t, "session_token_value", third.Object.Oss.SessionToken) // Uncomment if session token is needed
 	assert.Equal(t, true, third.Object.Oss.PublicRead)
-
-	// Environment: IMENV_OPENIM_RPC_THIRD_OBJECT_ENABLE=enabled;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_ENDPOINT=https://oss-cn-chengdu.aliyuncs.com;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_BUCKET=my_bucket_name;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_BUCKETURL=https://my_bucket_name.oss-cn-chengdu.aliyuncs.com;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_ACCESSKEYID=AKID1234567890;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_ACCESSKEYSECRET=abc123xyz789;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_SESSIONTOKEN=session_token_value;IMENV_OPENIM_RPC_THIRD_OBJECT_OSS_PUBLICREAD=true
 }
 
 func TestTransferConfig(t *testing.T) {

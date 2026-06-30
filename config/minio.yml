@@ -10,7 +10,9 @@ sessionToken:
 internalAddress: localhost:10005
 # External address of the MinIO server, accessible from outside. Supports both HTTP and HTTPS using a domain name
 externalAddress: http://external_ip:10005
+# Download address of the MinIO server. Keep empty to use externalAddress.
+# For CDN deployments, set externalAddress to the upload origin and downloadAddress to the CDN domain.
+downloadAddress:
 # Flag to enable or disable public read access to the bucket
 publicRead: false
-
 
