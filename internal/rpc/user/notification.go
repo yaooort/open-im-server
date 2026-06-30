@@ -123,3 +123,8 @@ func (u *UserNotificationSender) UserCommandDeleteNotification(
 ) {
 	u.Notification(ctx, tips.FromUserID, tips.ToUserID, constant.UserCommandDeleteNotification, tips)
 }
+
+func (u *UserNotificationSender) UserInfoUpdatedNotificationTo(ctx context.Context, changedUserID, recvUserID string) {
+	tips := sdkws.UserInfoUpdatedTips{UserID: changedUserID}
+	u.Notification(ctx, changedUserID, recvUserID, constant.UserInfoUpdatedNotification, &tips)
+}

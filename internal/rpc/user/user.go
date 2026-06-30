@@ -47,6 +47,7 @@ import (
 	"github.com/openimsdk/tools/db/pagination"
 	registry "github.com/openimsdk/tools/discovery"
 	"github.com/openimsdk/tools/errs"
+	"github.com/openimsdk/tools/log"
 	"github.com/openimsdk/tools/utils/datautil"
 	"google.golang.org/grpc"
 )
@@ -55,6 +56,7 @@ type userServer struct {
 	pbuser.UnimplementedUserServer
 	online                   cache.OnlineCache
 	db                       controller.UserDatabase
+	singleConversationFinder singleConversationOwnerFinder
 	friendNotificationSender *relation.FriendNotificationSender
 	userNotificationSender   *UserNotificationSender
 	RegisterCenter           registry.SvcDiscoveryRegistry
@@ -62,6 +64,10 @@ type userServer struct {
 	webhookClient            *webhook.Client
 	groupClient              *rpcli.GroupClient
 	relationClient           *rpcli.RelationClient
+}
+
+type singleConversationOwnerFinder interface {
+	FindSingleConversationOwnerUserIDsByUserID(ctx context.Context, userID string) ([]string, error)
 }
 
 type Config struct {
@@ -94,6 +100,10 @@ func Start(ctx context.Context, config *Config, client registry.SvcDiscoveryRegi
 	if err != nil {
 		return err
 	}
+	conversationDB, err := mgo.NewConversationMongo(mgocli.GetDB())
+	if err != nil {
+		return err
+	}
 	msgConn, err := client.GetConn(ctx, config.Share.RpcRegisterName.Msg)
 	if err != nil {
 		return err
@@ -113,6 +123,7 @@ func Start(ctx context.Context, config *Config, client registry.SvcDiscoveryRegi
 	u := &userServer{
 		online:                   redis.NewUserOnline(rdb),
 		db:                       database,
+		singleConversationFinder: conversationDB,
 		RegisterCenter:           client,
 		friendNotificationSender: relation.NewFriendNotificationSender(&config.NotificationConfig, msgClient, relation.WithDBFunc(database.FindWithError)),
 		userNotificationSender:   NewUserNotificationSender(config, msgClient, WithUserFunc(database.FindWithError)),
@@ -651,7 +662,9 @@ func (s *userServer) NotificationUserInfoUpdate(ctx context.Context, userID stri
 	if err != nil {
 		return err
 	}
-	if user.Nickname == oldUser.Nickname && user.FaceURL == oldUser.FaceURL {
+	// 酥语的聊天气泡、头像框等公开装扮放在 user.ex 里。只判断昵称/头像会漏掉
+	// “只换装扮不改头像昵称”的场景,导致好友/会话对端收不到刷新通知。
+	if user.Nickname == oldUser.Nickname && user.FaceURL == oldUser.FaceURL && user.Ex == oldUser.Ex {
 		return nil
 	}
 	oldUserInfo := convert.UserDB2Pb(oldUser)
@@ -677,7 +690,34 @@ func (s *userServer) NotificationUserInfoUpdate(ctx context.Context, userID stri
 		})
 	}()
 	wg.Wait()
+	if err := s.notifySingleConversationUserInfoUpdate(ctx, userID); err != nil {
+		// 这条链路只用于增强“非好友但有单聊会话”的实时资料刷新,失败不应该把
+		// 已经写库成功的资料更新反向判失败。好友/群成员通知仍保持原有错误返回语义。
+		log.ZWarn(ctx, "notify single conversation user info update failed", err, "userID", userID)
+	}
 	return errors.Join(es[:]...)
+}
+
+func (s *userServer) notifySingleConversationUserInfoUpdate(ctx context.Context, userID string) error {
+	if s.singleConversationFinder == nil || s.userNotificationSender == nil {
+		return nil
+	}
+	ownerUserIDs, err := s.singleConversationFinder.FindSingleConversationOwnerUserIDsByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(ownerUserIDs))
+	for _, ownerUserID := range ownerUserIDs {
+		if ownerUserID == "" || ownerUserID == userID {
+			continue
+		}
+		if _, ok := seen[ownerUserID]; ok {
+			continue
+		}
+		seen[ownerUserID] = struct{}{}
+		s.userNotificationSender.UserInfoUpdatedNotificationTo(ctx, userID, ownerUserID)
+	}
+	return nil
 }
 
 func (s *userServer) SortQuery(ctx context.Context, req *pbuser.SortQueryReq) (*pbuser.SortQueryResp, error) {

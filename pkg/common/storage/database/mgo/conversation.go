@@ -42,6 +42,16 @@ func NewConversationMongo(db *mongo.Database) (*ConversationMgo, error) {
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
+	_, err = coll.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "conversation_type", Value: 1},
+			{Key: "user_id", Value: 1},
+			{Key: "owner_user_id", Value: 1},
+		},
+	})
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
 	version, err := NewVersionLog(db.Collection(database.ConversationVersionName))
 	if err != nil {
 		return nil, err
@@ -149,6 +159,22 @@ func (c *ConversationMgo) FindConversationID(ctx context.Context, userID string,
 
 func (c *ConversationMgo) FindUserIDAllConversations(ctx context.Context, userID string) (conversations []*model.Conversation, err error) {
 	return mongoutil.Find[*model.Conversation](ctx, c.coll, bson.M{"owner_user_id": userID})
+}
+
+func (c *ConversationMgo) FindSingleConversationOwnerUserIDsByUserID(ctx context.Context, userID string) ([]string, error) {
+	if userID == "" {
+		return nil, nil
+	}
+	return mongoutil.Find[string](
+		ctx,
+		c.coll,
+		bson.M{
+			"conversation_type": constant.SingleChatType,
+			"user_id":           userID,
+			"owner_user_id":     bson.M{"$ne": userID},
+		},
+		options.Find().SetProjection(bson.M{"_id": 0, "owner_user_id": 1}),
+	)
 }
 
 func (c *ConversationMgo) FindRecvMsgUserIDs(ctx context.Context, conversationID string, recvOpts []int) ([]string, error) {
