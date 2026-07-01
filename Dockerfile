@@ -42,6 +42,9 @@ COPY --from=builder $SERVER_DIR/magefile.go $SERVER_DIR/
 COPY --from=builder $SERVER_DIR/start-config.yml $SERVER_DIR/
 COPY --from=builder $SERVER_DIR/go.mod $SERVER_DIR/
 COPY --from=builder $SERVER_DIR/go.sum $SERVER_DIR/
+# go.mod 里 replace github.com/openimsdk/tools => ./third_party/openimsdk-tools(本地补丁版,
+# 去掉 OSS 签名 GET 的 response-content-type)。final stage 的 go get 要解析模块图,必须带上它。
+COPY --from=builder $SERVER_DIR/third_party $SERVER_DIR/third_party
 
 RUN go get github.com/openimsdk/gomake@v0.0.14-alpha.5
 
